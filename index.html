@@ -33,6 +33,30 @@
     
     <div class="highscore-preview" id="hs-preview"></div>
     </div>
+
+        <!-- SCREEN 2 – PRACTICE -->
+    <div id="screen-practice" class="screen">
+    <div class="practice-title">🏋️ Practice mode</div>
+    <p class="practice-sub">Do a few squats to check if the model recognizes you.</p>
+    
+    <div style="position:relative; display:inline-block;">
+        <canvas id="canvas-practice"></canvas>
+    </div>
+    
+    <div class="pose-indicator" id="practice-indicator" style="margin-top:1rem;">
+        <div class="pose-dot"></div>
+        <span id="practice-pose-text">Wait...</span>
+    </div>
+    
+    <div id="practice-labels" style="margin-top:.8rem; font-size:.85rem; color:var(--muted);"></div>
+    
+    <div class="status-msg" id="practice-status" style="margin-top:.5rem;"></div>
+    
+    <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+        <button class="btn-primary" onclick="goToGame()">✅ Looks good! Start game</button>
+        <button class="btn-secondary" onclick="showScreen('screen-landing')">← Back</button>
+    </div>
+    </div>
 </body>
 <script type="text/javascript">
     // More API functions here:
