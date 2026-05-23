@@ -137,7 +137,86 @@
         <button class="btn-secondary" onclick="showScreen('screen-landing')">🏠 Home</button>
     </div>
     </div>
+
     </script>
+    //  CONFIG
+
+    const MODEL_URL = './my_model/';   // ← jouw Teachable Machine map
+    const CLASS_UP   = 'Squat Up';    // ← exacte class naam uit Teachable Machine
+    const CLASS_DOWN = 'Squat Down';  // ← exacte class naam uit Teachable Machine
+    const CONFIDENCE_THRESHOLD = 0.70; // hoe zeker het model moet zijn
+
+    //  STATE
+
+    let model, webcamPractice, webcamGame, ctxP, ctxG;
+    let maxPredictions;
+    let gameActive   = false;
+    let paused       = false;
+    let gameDuration = 60;
+    let timeLeft     = 60;
+    let squatCount   = 0;
+    let currentPose  = '';   // 'up' | 'down'
+    let lastCounted  = '';   // last pose that was counted
+    let timerInterval;
+    let animFrame;
+    let gameStartTime;
+    let bestStreak   = 0;
+    let currentStreak = 0;
+ 
+    const CIRC = 2 * Math.PI * 35; // circle circumference
+
+    //  LOCALSTORAGE
+
+    function getHistory() {
+    try { return JSON.parse(localStorage.getItem('squatzone_history') || '[]'); }
+    catch { return []; }
+    }
+    
+    function saveRun(score, duration) {
+    const history = getHistory();
+    history.unshift({ score, duration, date: new Date().toLocaleDateString('nl-BE') });
+    if (history.length > 20) history.pop();
+    localStorage.setItem('squatzone_history', JSON.stringify(history));
+    }
+    
+    function getHighscore() {
+    const h = getHistory();
+    return h.length ? Math.max(...h.map(r => r.score)) : 0;
+    }
+    
+    //  SCREEN ROUTING
+
+    function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    }
+    
+    //  LANDING
+    
+    document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('custom-sec').value = '';
+        gameDuration = parseInt(btn.dataset.sec);
+    });
+    });
+    
+    document.getElementById('custom-sec').addEventListener('input', function() {
+    if (this.value) {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        gameDuration = parseInt(this.value) || 60;
+    }
+    });
+    
+    function updateLandingHighscore() {
+    const hs = getHighscore();
+    const el = document.getElementById('hs-preview');
+    el.innerHTML = hs > 0
+        ? `Highscore: <strong>${hs} squats</strong>`
+        : 'Nog geen scores opgeslagen.';
+    }
+    
 </body>
 <script type="text/javascript">
     // More API functions here:
