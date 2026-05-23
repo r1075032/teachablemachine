@@ -1,1233 +1,630 @@
-<div>Teachable Machine Pose Model</div>
-<button type="button" onclick="init()">Start</button>
-<div><canvas id="canvas"></canvas></div>
-<div id="label-container"></div>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
-
-<style>
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SquadZone 💪</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+  <style>
     :root {
-      --bg: #0a0a0f;
-      --surface: #13131a;
-      --card: #1a1a26;
-      --border: #2a2a3d;
-      --accent: #e8ff3e;
-      --accent2: #ff3e6c;
-      --text: #f0f0f8;
-      --muted: #6b6b8a;
-      --green: #3effb4;
+      --bg: #0a0a0f; --surface: #13131a; --card: #1a1a26; --border: #2a2a3d;
+      --accent: #e8ff3e; --accent2: #ff3e6c; --text: #f0f0f8; --muted: #6b6b8a; --green: #3effb4;
     }
- 
     * { margin: 0; padding: 0; box-sizing: border-box; }
- 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
- 
-    /* ─── NOISE OVERLAY ─── */
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
     body::before {
-      content: '';
-      position: fixed; inset: 0;
+      content: ''; position: fixed; inset: 0;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
       pointer-events: none; z-index: 9999; opacity: .4;
     }
- 
-    /* ─── SCREENS ─── */
     .screen { display: none; }
     .screen.active { display: flex; }
- 
-    /* ════════════════════════════════
-       LANDING SCREEN
-    ════════════════════════════════ */
-    #screen-landing {
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 2rem;
-      text-align: center;
-      position: relative;
-    }
- 
-    .bg-glow {
-      position: absolute;
-      width: 600px; height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(232,255,62,.06) 0%, transparent 70%);
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-    }
- 
-    .logo {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(4rem, 12vw, 8rem);
-      letter-spacing: .04em;
-      line-height: 1;
-      color: var(--accent);
-      text-shadow: 0 0 60px rgba(232,255,62,.3);
-      animation: pulse 3s ease-in-out infinite;
-    }
- 
+
+    /* LANDING */
+    #screen-landing { flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; position: relative; }
+    .bg-glow { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(232,255,62,.06) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(4rem,12vw,8rem); letter-spacing: .04em; line-height: 1; color: var(--accent); text-shadow: 0 0 60px rgba(232,255,62,.3); animation: pulse 3s ease-in-out infinite; }
     .logo span { color: var(--text); }
- 
-    @keyframes pulse {
-      0%, 100% { text-shadow: 0 0 60px rgba(232,255,62,.3); }
-      50%       { text-shadow: 0 0 100px rgba(232,255,62,.6); }
-    }
- 
-    .tagline {
-      font-size: 1.1rem;
-      color: var(--muted);
-      margin: 1rem 0 3rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-    }
- 
-    .timer-setup {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2rem;
-      width: 100%;
-      max-width: 380px;
-      margin-bottom: 2rem;
-    }
- 
-    .timer-setup h3 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem;
-      letter-spacing: .08em;
-      margin-bottom: 1.2rem;
-      color: var(--muted);
-    }
- 
-    .time-options {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: .6rem;
-      margin-bottom: 1rem;
-    }
- 
-    .time-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: .7rem;
-      border-radius: 10px;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.2rem;
-      cursor: pointer;
-      transition: all .2s;
-    }
- 
-    .time-btn:hover, .time-btn.selected {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #000;
-    }
- 
-    .custom-time {
-      display: flex;
-      align-items: center;
-      gap: .8rem;
-      margin-top: .6rem;
-    }
- 
-    .custom-time label {
-      font-size: .85rem;
-      color: var(--muted);
-      white-space: nowrap;
-    }
- 
-    .custom-time input {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: .5rem .8rem;
-      border-radius: 8px;
-      width: 80px;
-      font-size: 1rem;
-      font-family: 'Bebas Neue', sans-serif;
-      text-align: center;
-      outline: none;
-    }
- 
+    @keyframes pulse { 0%,100% { text-shadow: 0 0 60px rgba(232,255,62,.3); } 50% { text-shadow: 0 0 100px rgba(232,255,62,.6); } }
+    .tagline { font-size: 1.1rem; color: var(--muted); margin: 1rem 0 3rem; letter-spacing: .1em; text-transform: uppercase; }
+    .timer-setup { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; width: 100%; max-width: 380px; margin-bottom: 2rem; }
+    .timer-setup h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .08em; margin-bottom: 1.2rem; color: var(--muted); }
+    .time-options { display: grid; grid-template-columns: repeat(3,1fr); gap: .6rem; margin-bottom: 1rem; }
+    .time-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: .7rem; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; cursor: pointer; transition: all .2s; }
+    .time-btn:hover, .time-btn.selected { background: var(--accent); border-color: var(--accent); color: #000; }
+    .custom-time { display: flex; align-items: center; gap: .8rem; margin-top: .6rem; }
+    .custom-time label { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+    .custom-time input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: .5rem .8rem; border-radius: 8px; width: 80px; font-size: 1rem; font-family: 'Bebas Neue', sans-serif; text-align: center; outline: none; }
     .custom-time input:focus { border-color: var(--accent); }
- 
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      padding: 1rem 2.4rem;
-      border-radius: 50px;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem;
-      letter-spacing: .08em;
-      cursor: pointer;
-      transition: all .2s;
-      display: inline-flex;
-      align-items: center;
-      gap: .5rem;
-    }
- 
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(232,255,62,.3);
-    }
- 
-    .btn-secondary {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      padding: .7rem 1.6rem;
-      border-radius: 50px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: .9rem;
-      cursor: pointer;
-      transition: all .2s;
-      margin-top: .8rem;
-    }
- 
+    .btn-primary { background: var(--accent); color: #000; border: none; padding: 1rem 2.4rem; border-radius: 50px; font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .08em; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: .5rem; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(232,255,62,.3); }
+    .btn-secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: .7rem 1.6rem; border-radius: 50px; font-family: 'DM Sans', sans-serif; font-size: .9rem; cursor: pointer; transition: all .2s; margin-top: .8rem; }
     .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
- 
-    .highscore-preview {
-      margin-top: 2rem;
-      font-size: .85rem;
-      color: var(--muted);
-    }
- 
+    .highscore-preview { margin-top: 2rem; font-size: .85rem; color: var(--muted); }
     .highscore-preview strong { color: var(--accent); font-size: 1.1rem; }
- 
-    /* ════════════════════════════════
-       PRACTICE SCREEN
-    ════════════════════════════════ */
-    #screen-practice {
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 2rem;
-      text-align: center;
+
+    /* PRACTICE */
+    #screen-practice { flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
+    .practice-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: .06em; margin-bottom: .3rem; }
+    .practice-sub { color: var(--muted); font-size: .95rem; margin-bottom: 1.5rem; }
+
+    /* GAME */
+    #screen-game { flex-direction: column; min-height: 100vh; }
+    .game-header { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 2rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 1rem; }
+    .stat-block { display: flex; flex-direction: column; align-items: center; }
+    .stat-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; line-height: 1; color: var(--accent); }
+    .stat-value.green { color: var(--green); }
+    .game-body { flex: 1; display: flex; gap: 1.5rem; padding: 1.5rem 2rem; flex-wrap: wrap; }
+
+    /* CAMERA — groot en responsief */
+    .camera-panel { flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center; gap: .8rem; }
+    #canvas-game, #canvas-practice {
+      border-radius: 16px; border: 3px solid var(--border);
+      width: 100%; max-width: 560px; height: auto; display: block;
+      transition: border-color .2s, box-shadow .2s;
     }
- 
-    .practice-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 2.5rem;
-      letter-spacing: .06em;
-      margin-bottom: .3rem;
-    }
- 
-    .practice-sub {
-      color: var(--muted);
-      font-size: .95rem;
-      margin-bottom: 1.5rem;
-    }
- 
-    /* ════════════════════════════════
-       GAME SCREEN
-    ════════════════════════════════ */
-    #screen-game {
-      flex-direction: column;
-      min-height: 100vh;
-    }
- 
-    .game-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.2rem 2rem;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
- 
-    .stat-block {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
- 
-    .stat-label {
-      font-size: .7rem;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--muted);
-    }
- 
-    .stat-value {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 2.6rem;
-      line-height: 1;
-      color: var(--accent);
-    }
- 
-    .stat-value.danger { color: var(--accent2); }
-    .stat-value.green  { color: var(--green); }
- 
-    .game-body {
-      flex: 1;
-      display: flex;
-      gap: 1.5rem;
-      padding: 1.5rem 2rem;
-      flex-wrap: wrap;
-    }
- 
-    .camera-panel {
-      flex: 1;
-      min-width: 260px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-    }
- 
-    #canvas {
-      border-radius: 16px;
-      border: 2px solid var(--border);
-      max-width: 100%;
-      transition: border-color .3s;
-    }
- 
-    #canvas.squat-down { border-color: var(--accent2); box-shadow: 0 0 30px rgba(255,62,108,.2); }
-    #canvas.squat-up   { border-color: var(--green);   box-shadow: 0 0 30px rgba(62,255,180,.2); }
- 
-    .pose-indicator {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      padding: .5rem 1.2rem;
-      border-radius: 50px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      font-size: .9rem;
-      font-weight: 600;
-      transition: all .3s;
-    }
- 
-    .pose-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: var(--muted);
-      transition: background .3s;
-    }
- 
+    #canvas-game.squad-down { border-color: var(--accent2); box-shadow: 0 0 50px rgba(255,62,108,.35); }
+    #canvas-game.squad-up   { border-color: var(--green);   box-shadow: 0 0 50px rgba(62,255,180,.35); }
+
+    .pose-indicator { display: flex; align-items: center; gap: .5rem; padding: .5rem 1.2rem; border-radius: 50px; background: var(--card); border: 1px solid var(--border); font-size: .9rem; font-weight: 600; transition: all .3s; }
+    .pose-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: background .3s; }
     .pose-indicator.up   .pose-dot { background: var(--green); }
     .pose-indicator.down .pose-dot { background: var(--accent2); }
- 
-    .info-panel {
-      width: 280px;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
- 
-    .info-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.2rem;
-    }
- 
-    .info-card h4 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1rem;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin-bottom: .8rem;
-    }
- 
-    .prob-bar-wrap {
-      display: flex;
-      flex-direction: column;
-      gap: .5rem;
-    }
- 
+
+    /* debug balk */
+    .debug-box { font-size: .75rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .35rem .8rem; width: 100%; max-width: 560px; font-family: monospace; }
+
+    .info-panel { width: 290px; display: flex; flex-direction: column; gap: 1rem; }
+    .info-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.2rem; }
+    .info-card h4 { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .08em; color: var(--muted); margin-bottom: .8rem; }
+    .prob-bar-wrap { display: flex; flex-direction: column; gap: .5rem; }
     .prob-row { display: flex; flex-direction: column; gap: .2rem; }
- 
-    .prob-row-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: .8rem;
-    }
- 
-    .prob-bar-bg {
-      background: var(--surface);
-      border-radius: 4px;
-      height: 8px;
-      overflow: hidden;
-    }
- 
-    .prob-bar-fill {
-      height: 100%;
-      border-radius: 4px;
-      transition: width .2s ease;
-      background: var(--accent);
-    }
- 
+    .prob-row-label { display: flex; justify-content: space-between; font-size: .8rem; }
+    .prob-bar-bg { background: var(--surface); border-radius: 4px; height: 8px; overflow: hidden; }
+    .prob-bar-fill { height: 100%; border-radius: 4px; transition: width .15s ease; background: var(--green); }
     .prob-bar-fill.bar-down { background: var(--accent2); }
- 
-    /* squat counter big display */
-    .squat-counter-big {
-      text-align: center;
-    }
- 
-    .squat-num {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 6rem;
-      line-height: 1;
-      color: var(--accent);
-      transition: transform .1s;
-    }
- 
-    .squat-num.pop {
-      animation: pop .25s ease;
-    }
- 
-    @keyframes pop {
-      0%   { transform: scale(1); }
-      50%  { transform: scale(1.3); color: var(--green); }
-      100% { transform: scale(1); }
-    }
- 
-    /* timer ring */
-    .timer-ring-wrap {
-      position: relative;
-      width: 80px; height: 80px;
-      margin: 0 auto;
-    }
- 
+    .squad-counter-big { text-align: center; }
+    .squad-num { font-family: 'Bebas Neue', sans-serif; font-size: 6rem; line-height: 1; color: var(--accent); }
+    @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.4); color: var(--green); } 100% { transform: scale(1); } }
+    .squad-num.pop { animation: pop .3s ease; }
+    .timer-ring-wrap { position: relative; width: 80px; height: 80px; margin: 0 auto; }
     .timer-ring-wrap svg { transform: rotate(-90deg); }
- 
     .timer-ring-bg   { fill: none; stroke: var(--border); stroke-width: 5; }
     .timer-ring-fill { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .9s linear, stroke .5s; }
- 
-    .timer-ring-text {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.3rem;
-      color: var(--text);
-    }
- 
-    /* ════════════════════════════════
-       RESULT SCREEN
-    ════════════════════════════════ */
-    #screen-result {
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 2rem;
-      text-align: center;
-    }
- 
-    .result-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(3rem, 8vw, 5rem);
-      letter-spacing: .04em;
-      color: var(--accent);
-      margin-bottom: .2rem;
-    }
- 
-    .result-score {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(6rem, 18vw, 12rem);
-      line-height: 1;
-      background: linear-gradient(135deg, var(--accent), var(--green));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin: .5rem 0;
-    }
- 
-    .result-sub {
-      font-size: 1rem;
-      color: var(--muted);
-      margin-bottom: 2rem;
-    }
- 
-    .result-badge {
-      background: var(--accent);
-      color: #000;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1rem;
-      letter-spacing: .1em;
-      padding: .4rem 1rem;
-      border-radius: 50px;
-      display: inline-block;
-      margin-bottom: 2rem;
-    }
- 
-    .result-history {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.2rem 1.5rem;
-      max-width: 360px;
-      width: 100%;
-      margin-bottom: 2rem;
-    }
- 
-    .result-history h4 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1rem;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin-bottom: .8rem;
-    }
- 
-    .history-list {
-      display: flex;
-      flex-direction: column;
-      gap: .4rem;
-      max-height: 160px;
-      overflow-y: auto;
-    }
- 
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      font-size: .9rem;
-      padding: .3rem 0;
-      border-bottom: 1px solid var(--border);
-    }
- 
+    .timer-ring-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--text); }
+    .btn-pause { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: .5rem 1.2rem; border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: .85rem; transition: all .2s; }
+    .btn-pause:hover { border-color: var(--muted); }
+    .status-msg { font-size: 1.1rem; font-weight: 700; min-height: 1.6em; color: var(--green); }
+
+    /* RESULT */
+    #screen-result { flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
+    .result-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem,8vw,5rem); letter-spacing: .04em; color: var(--accent); margin-bottom: .2rem; }
+    .result-score { font-family: 'Bebas Neue', sans-serif; font-size: clamp(6rem,18vw,12rem); line-height: 1; background: linear-gradient(135deg, var(--accent), var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: .5rem 0; }
+    .result-sub { font-size: 1rem; color: var(--muted); margin-bottom: 2rem; }
+    .result-badge { background: var(--accent); color: #000; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .1em; padding: .4rem 1rem; border-radius: 50px; display: inline-block; margin-bottom: 2rem; }
+    .result-history { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.2rem 1.5rem; max-width: 360px; width: 100%; margin-bottom: 2rem; }
+    .result-history h4 { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .08em; color: var(--muted); margin-bottom: .8rem; }
+    .history-list { display: flex; flex-direction: column; gap: .4rem; max-height: 160px; overflow-y: auto; }
+    .history-item { display: flex; justify-content: space-between; font-size: .9rem; padding: .3rem 0; border-bottom: 1px solid var(--border); }
     .history-item:last-child { border-bottom: none; }
     .history-item .hi-score { font-weight: 700; color: var(--accent); }
     .history-item.top .hi-score { color: var(--green); }
- 
-    .btn-group {
-      display: flex;
-      gap: 1rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
- 
-    /* loading overlay */
-    #loading-overlay {
-      position: fixed; inset: 0;
-      background: rgba(10,10,15,.9);
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      display: none;
-    }
- 
-    .spinner {
-      width: 50px; height: 50px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
- 
+    .btn-group { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+
+    /* OVERLAYS */
+    #loading-overlay { position: fixed; inset: 0; background: rgba(10,10,15,.93); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; display: none; }
+    .spinner { width: 50px; height: 50px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
- 
-    .loading-text {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem;
-      letter-spacing: .1em;
-      color: var(--muted);
-    }
- 
-    /* countdown overlay */
-    #countdown-overlay {
-      position: fixed; inset: 0;
-      background: rgba(10,10,15,.85);
-      z-index: 500;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
- 
-    .countdown-num {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 20vw;
-      color: var(--accent);
-      animation: countPulse .9s ease forwards;
-    }
- 
-    @keyframes countPulse {
-      from { transform: scale(1.5); opacity: 0; }
-      to   { transform: scale(1);   opacity: 1; }
-    }
- 
-    .countdown-label {
-      font-size: 1.2rem;
-      color: var(--muted);
-      letter-spacing: .2em;
-      text-transform: uppercase;
-    }
- 
-    /* pause button */
-    .btn-pause {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: .5rem 1.2rem;
-      border-radius: 8px;
-      cursor: pointer;
-      font-family: 'DM Sans', sans-serif;
-      font-size: .85rem;
-      transition: all .2s;
-    }
- 
-    .btn-pause:hover { border-color: var(--muted); }
- 
-    /* status messages */
-    .status-msg {
-      font-size: 1rem;
-      font-weight: 600;
-      min-height: 1.4em;
-      color: var(--green);
-      transition: color .3s;
-    }
- 
-    @media (max-width: 640px) {
-      .game-body { flex-direction: column; }
-      .info-panel { width: 100%; }
-    }
+    .loading-text { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .1em; color: var(--muted); }
+    #countdown-overlay { position: fixed; inset: 0; background: rgba(10,10,15,.85); z-index: 500; display: none; flex-direction: column; align-items: center; justify-content: center; }
+    .countdown-num { font-family: 'Bebas Neue', sans-serif; font-size: 20vw; color: var(--accent); }
+    @keyframes countPulse { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .countdown-label { font-size: 1.2rem; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; }
+
+    @media (max-width: 700px) { .game-body { flex-direction: column; } .info-panel { width: 100%; } }
   </style>
+</head>
 <body>
-        <!-- SCREEN 1 – LANDING-->
-    <div id="screen-landing" class="screen active">
-    <div class="bg-glow"></div>
-    <div class="logo">Squat<span>Zone</span></div>
-    <p class="tagline">How many squats can you do?</p>
-    
-    <div class="timer-setup">
-        <h3>⏱ Choose Your Time</h3>
-        <div class="time-options">
-        <button class="time-btn" data-sec="30">30s</button>
-        <button class="time-btn selected" data-sec="60">1 min</button>
-        <button class="time-btn" data-sec="90">90s</button>
-        <button class="time-btn" data-sec="120">2 min</button>
-        <button class="time-btn" data-sec="180">3 min</button>
-        <button class="time-btn" data-sec="300">5 min</button>
-        </div>
-        <div class="custom-time">
-        <label>Custom Time (sec):</label>
-        <input type="number" id="custom-sec" min="10" max="600" placeholder="sec" />
-        </div>
-    </div>
-    
-    <button class="btn-primary" onclick="startPractice()">⚡ Start</button>
-    <br>
-    <button class="btn-secondary" onclick="skipPractice()">Skip Practice →</button>
-    
-    <div class="highscore-preview" id="hs-preview"></div>
-    </div>
 
-        <!-- SCREEN 2 – PRACTICE -->
-    <div id="screen-practice" class="screen">
-    <div class="practice-title">🏋️ Practice mode</div>
-    <p class="practice-sub">Do a few squats to check if the model recognizes you.</p>
-    
-    <div style="position:relative; display:inline-block;">
-        <canvas id="canvas-practice"></canvas>
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Model laden...</div>
+</div>
+
+<!-- COUNTDOWN OVERLAY -->
+<div id="countdown-overlay">
+  <div class="countdown-num" id="countdown-num">3</div>
+  <div class="countdown-label">Klaar maken...</div>
+</div>
+
+<!-- SCREEN 1: LANDING -->
+<div id="screen-landing" class="screen active">
+  <div class="bg-glow"></div>
+  <div class="logo">Squad<span>Zone</span></div>
+  <p class="tagline">How many squats can you do?</p>
+  <div class="timer-setup">
+    <h3>⏱ Choose Your Time</h3>
+    <div class="time-options">
+      <button class="time-btn" data-sec="30">30s</button>
+      <button class="time-btn selected" data-sec="60">1 min</button>
+      <button class="time-btn" data-sec="90">90s</button>
+      <button class="time-btn" data-sec="120">2 min</button>
+      <button class="time-btn" data-sec="180">3 min</button>
+      <button class="time-btn" data-sec="300">5 min</button>
     </div>
-    
-    <div class="pose-indicator" id="practice-indicator" style="margin-top:1rem;">
+    <div class="custom-time">
+      <label>Custom (sec):</label>
+      <input type="number" id="custom-sec" min="10" max="600" placeholder="sec" />
+    </div>
+  </div>
+  <button class="btn-primary" onclick="startPractice()">⚡ Start</button><br>
+  <button class="btn-secondary" onclick="skipPractice()">Skip Practice →</button>
+  <div class="highscore-preview" id="hs-preview"></div>
+</div>
+
+<!-- SCREEN 2: PRACTICE -->
+<div id="screen-practice" class="screen">
+  <div class="practice-title">🏋️ Practice Mode</div>
+  <p class="practice-sub">Do a few squats to check the model recognizes you correctly.</p>
+  <canvas id="canvas-practice"></canvas>
+  <div class="debug-box" id="practice-debug" style="margin-top:.5rem;">Wachten op model...</div>
+  <div class="pose-indicator" id="practice-indicator" style="margin-top:.8rem;">
+    <div class="pose-dot"></div>
+    <span id="practice-pose-text">Waiting...</span>
+  </div>
+  <div class="status-msg" id="practice-status" style="margin-top:.4rem;"></div>
+  <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+    <button class="btn-primary" onclick="goToGame()">✅ Looks good! Start Game</button>
+    <button class="btn-secondary" onclick="showScreen('screen-landing')">← Back</button>
+  </div>
+</div>
+
+<!-- SCREEN 3: GAME -->
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <div class="stat-block">
+      <span class="stat-label">Squats</span>
+      <span class="stat-value" id="game-count">0</span>
+    </div>
+    <div class="stat-block">
+      <div class="timer-ring-wrap">
+        <svg viewBox="0 0 80 80" width="80" height="80">
+          <circle class="timer-ring-bg" cx="40" cy="40" r="35"/>
+          <circle class="timer-ring-fill" id="timer-ring" cx="40" cy="40" r="35" stroke-dasharray="219.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-ring-text" id="timer-display">60</div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <span class="stat-label">Highscore</span>
+      <span class="stat-value green" id="game-hs">0</span>
+    </div>
+    <button class="btn-pause" onclick="togglePause()" id="pause-btn">⏸ Pause</button>
+  </div>
+  <div class="game-body">
+    <div class="camera-panel">
+      <canvas id="canvas-game"></canvas>
+      <div class="debug-box" id="game-debug">Wachten...</div>
+      <div class="pose-indicator" id="game-indicator">
         <div class="pose-dot"></div>
-        <span id="practice-pose-text">Wait...</span>
+        <span id="game-pose-text">Waiting...</span>
+      </div>
+      <div class="status-msg" id="game-status"></div>
     </div>
-    
-    <div id="practice-labels" style="margin-top:.8rem; font-size:.85rem; color:var(--muted);"></div>
-    
-    <div class="status-msg" id="practice-status" style="margin-top:.5rem;"></div>
-    
-    <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
-        <button class="btn-primary" onclick="goToGame()">✅ Looks good! Start game</button>
-        <button class="btn-secondary" onclick="showScreen('screen-landing')">← Back</button>
+    <div class="info-panel">
+      <div class="info-card squad-counter-big">
+        <h4>SQUATS</h4>
+        <div class="squad-num" id="big-count">0</div>
+      </div>
+      <div class="info-card">
+        <h4>MODEL CONFIDENCE</h4>
+        <div class="prob-bar-wrap" id="prob-bars"></div>
+      </div>
+      <div class="info-card">
+        <h4>SESSION STATS</h4>
+        <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Squats/min</span><span id="stat-rpm">—</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Best streak</span><span id="stat-streak">0</span></div>
+        </div>
+      </div>
     </div>
-    </div>
+  </div>
+</div>
 
-        <!-- SCREEN 3 – GAME -->
-    <div id="screen-game" class="screen">
-    <div class="game-header">
-        <div class="stat-block">
-        <span class="stat-label">Squats</span>
-        <span class="stat-value" id="game-count">0</span>
-        </div>
-        <div class="stat-block">
-        <div class="timer-ring-wrap">
-            <svg viewBox="0 0 80 80" width="80" height="80">
-            <circle class="timer-ring-bg" cx="40" cy="40" r="35"/>
-            <circle class="timer-ring-fill" id="timer-ring" cx="40" cy="40" r="35"
-                    stroke-dasharray="219.9" stroke-dashoffset="0"/>
-            </svg>
-            <div class="timer-ring-text" id="timer-display">60</div>
-        </div>
-        </div>
-        <div class="stat-block">
-        <span class="stat-label">Highscore</span>
-        <span class="stat-value green" id="game-hs">0</span>
-        </div>
-        <button class="btn-pause" onclick="togglePause()" id="pause-btn">⏸ Pauzeer</button>
-    </div>
-    
-    <div class="game-body">
-        <div class="camera-panel">
-        <canvas id="canvas-game"></canvas>
-        <div class="pose-indicator" id="game-indicator">
-            <div class="pose-dot"></div>
-            <span id="game-pose-text">Wachten...</span>
-        </div>
-        <div class="status-msg" id="game-status"></div>
-        </div>
-    
-        <div class="info-panel">
-        <div class="info-card squat-counter-big">
-            <h4>SQUATS</h4>
-            <div class="squat-num" id="big-count">0</div>
-        </div>
-    
-        <div class="info-card">
-            <h4>MODEL ZEKERHEID</h4>
-            <div class="prob-bar-wrap" id="prob-bars"></div>
-        </div>
-    
-        <div class="info-card">
-            <h4>SESSIE STATISTIEKEN</h4>
-            <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem;">
-            <div style="display:flex;justify-content:space-between;">
-                <span style="color:var(--muted)">Squats/min</span>
-                <span id="stat-rpm">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-                <span style="color:var(--muted)">Beste streak</span>
-                <span id="stat-streak">0</span>
-            </div>
-            </div>
-        </div>
-        </div>
-    </div>
-    </div>
+<!-- SCREEN 4: RESULT -->
+<div id="screen-result" class="screen">
+  <div class="result-title">Result</div>
+  <div class="result-score" id="result-score">0</div>
+  <div class="result-sub">squats in <span id="result-time">?</span> seconds</div>
+  <div class="result-badge" id="result-badge">NEW RECORD 🏆</div>
+  <div class="result-history">
+    <h4>📋 History (saved in localStorage)</h4>
+    <div class="history-list" id="history-list"></div>
+  </div>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="restartGame()">🔄 Play Again</button>
+    <button class="btn-secondary" onclick="showScreen('screen-landing')">🏠 Home</button>
+  </div>
+</div>
 
-        <!-- SCREEN 4 – RESULT -->
-    <div id="screen-result" class="screen">
-    <div class="result-title">Resultaat</div>
-    <div class="result-score" id="result-score">0</div>
-    <div class="result-sub">squats in <span id="result-time">?</span> seconden</div>
-    <div class="result-badge" id="result-badge">NIEUW RECORD 🏆</div>
-    
-    <div class="result-history">
-        <h4>📋 Geschiedenis (opgeslagen in localstorage)</h4>
-        <div class="history-list" id="history-list"></div>
-    </div>
-    
-    <div class="btn-group">
-        <button class="btn-primary" onclick="restartGame()">🔄 Opnieuw</button>
-        <button class="btn-secondary" onclick="showScreen('screen-landing')">🏠 Home</button>
-    </div>
-    </div>
+<script>
+  // ── CONFIG ──
+  const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/ptcPeQ2DY/';
+  const CONFIDENCE_THRESHOLD = 0.60; // iets lager = makkelijker te detecteren
+  const CAM_SIZE = 500;
+  const CIRC = 2 * Math.PI * 35;
 
-    </script>
-        //  CONFIG
+  // Class namen worden AUTOMATISCH uit het model gehaald na het laden
+  // Index 0 = squad up (staand), Index 1 = squad down (gehurkt)
+  // Kijk in de debug balk om te zien welke index welke pose is.
+  // Is het omgekeerd? Verander dan: UP_IDX = 1, DOWN_IDX = 0
+  const UP_IDX   = 0;
+  const DOWN_IDX = 1;
 
-        const MODEL_URL = './my_model/';   // ← jouw Teachable Machine map
-        const CLASS_UP   = 'Squat Up';    // ← exacte class naam uit Teachable Machine
-        const CLASS_DOWN = 'Squat Down';  // ← exacte class naam uit Teachable Machine
-        const CONFIDENCE_THRESHOLD = 0.70; // hoe zeker het model moet zijn
+  // ── STATE ──
+  let model, webcamPractice, webcamGame, ctxP, ctxG, maxPredictions;
+  let allLabels = []; // worden ingesteld na model load
+  let gameActive = false, paused = false;
+  let gameDuration = 60, timeLeft = 60;
+  let squadCount = 0, lastCounted = '';
+  let timerInterval, animFrame, gameStartTime;
+  let bestStreak = 0, currentStreak = 0;
 
-        //  STATE
+  // ── LOCALSTORAGE ──
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem('squadzone_history') || '[]'); }
+    catch { return []; }
+  }
+  function saveRun(score, duration) {
+    const h = getHistory();
+    h.unshift({ score, duration, date: new Date().toLocaleDateString('nl-BE') });
+    if (h.length > 20) h.pop();
+    localStorage.setItem('squadzone_history', JSON.stringify(h));
+  }
+  function getHighscore() {
+    const h = getHistory();
+    return h.length ? Math.max(...h.map(r => r.score)) : 0;
+  }
 
-        let model, webcamPractice, webcamGame, ctxP, ctxG;
-        let maxPredictions;
-        let gameActive   = false;
-        let paused       = false;
-        let gameDuration = 60;
-        let timeLeft     = 60;
-        let squatCount   = 0;
-        let currentPose  = '';   // 'up' | 'down'
-        let lastCounted  = '';   // last pose that was counted
-        let timerInterval;
-        let animFrame;
-        let gameStartTime;
-        let bestStreak   = 0;
-        let currentStreak = 0;
-    
-        const CIRC = 2 * Math.PI * 35; // circle circumference
+  // ── SCREENS ──
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
 
-        //  LOCALSTORAGE
+  // ── LANDING ──
+  document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('custom-sec').value = '';
+      gameDuration = parseInt(btn.dataset.sec);
+    });
+  });
+  document.getElementById('custom-sec').addEventListener('input', function() {
+    if (this.value) {
+      document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+      gameDuration = parseInt(this.value) || 60;
+    }
+  });
+  function updateLandingHighscore() {
+    const hs = getHighscore();
+    document.getElementById('hs-preview').innerHTML = hs > 0
+      ? `Highscore: <strong>${hs} squats</strong>`
+      : 'No scores saved yet.';
+  }
 
-        function getHistory() {
-        try { return JSON.parse(localStorage.getItem('squatzone_history') || '[]'); }
-        catch { return []; }
-        }
-        
-        function saveRun(score, duration) {
-        const history = getHistory();
-        history.unshift({ score, duration, date: new Date().toLocaleDateString('nl-BE') });
-        if (history.length > 20) history.pop();
-        localStorage.setItem('squatzone_history', JSON.stringify(history));
-        }
-        
-        function getHighscore() {
-        const h = getHistory();
-        return h.length ? Math.max(...h.map(r => r.score)) : 0;
-        }
-        
-        //  SCREEN ROUTING
+  // ── MODEL LADEN ──
+  function showLoading(b, msg = 'Model laden...') {
+    document.getElementById('loading-overlay').style.display = b ? 'flex' : 'none';
+    document.getElementById('loading-text').textContent = msg;
+  }
+  async function loadModel() {
+    showLoading(true);
+    try {
+      model = await tmPose.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
+      maxPredictions = model.getTotalClasses();
+      // Doe één dummy prediction om de echte label namen te achterhalen
+      // Ze komen pas beschikbaar via de prediction objecten zelf
+      allLabels = [];
+      console.log('Model geladen:', maxPredictions, 'klassen');
+    } catch(e) {
+      alert('Model kon niet geladen worden:\n' + e);
+      showLoading(false);
+      return false;
+    }
+    showLoading(false);
+    return true;
+  }
 
-        function showScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        }
-        
-        //  LANDING
+  // Haal top prediction op + sla labels op zodra we ze kennen
+  function getTop(predictions) {
+    // Labels opslaan zodra we ze hebben
+    if (allLabels.length === 0) {
+      predictions.forEach(p => allLabels.push(p.className));
+      console.log('Labels gevonden:', allLabels);
+    }
+    let topIdx = 0, topConf = 0;
+    predictions.forEach((p, i) => {
+      if (p.probability > topConf) { topConf = p.probability; topIdx = i; }
+    });
+    return { topIdx, topConf, topLabel: predictions[topIdx].className };
+  }
 
-        document.querySelectorAll('.time-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            document.getElementById('custom-sec').value = '';
-            gameDuration = parseInt(btn.dataset.sec);
-        });
-        });
-        
-        document.getElementById('custom-sec').addEventListener('input', function() {
-        if (this.value) {
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-            gameDuration = parseInt(this.value) || 60;
-        }
-        });
-        
-        function updateLandingHighscore() {
-        const hs = getHighscore();
-        const el = document.getElementById('hs-preview');
-        el.innerHTML = hs > 0
-            ? `Highscore: <strong>${hs} squats</strong>`
-            : 'Nog geen scores opgeslagen.';
-        }
+  // ── PRACTICE MODE ──
+  async function startPractice() {
+    const ok = await loadModel();
+    if (!ok) return;
+    showScreen('screen-practice');
+    const canvas = document.getElementById('canvas-practice');
+    canvas.width = CAM_SIZE; canvas.height = CAM_SIZE;
+    ctxP = canvas.getContext('2d');
+    showLoading(true, 'Camera opstarten...');
+    webcamPractice = new tmPose.Webcam(CAM_SIZE, CAM_SIZE, true);
+    await webcamPractice.setup();
+    await webcamPractice.play();
+    showLoading(false);
+    practiceLoop();
+  }
 
-        //  MODEL INIT
+  async function practiceLoop() {
+    if (!webcamPractice) return;
+    webcamPractice.update();
+    const { pose, posenetOutput } = await model.estimatePose(webcamPractice.canvas);
+    const predictions = await model.predict(posenetOutput);
+    ctxP.drawImage(webcamPractice.canvas, 0, 0);
+    if (pose) { tmPose.drawKeypoints(pose.keypoints, 0.5, ctxP); tmPose.drawSkeleton(pose.keypoints, 0.5, ctxP); }
 
-        async function loadModel() {
-        showLoading(true);
-        try {
-            model = await tmPose.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
-            maxPredictions = model.getTotalClasses();
-            buildProbBars();
-        } catch(e) {
-            alert('Model kon niet geladen worden. Zorg dat de map "my_model" aanwezig is.\n\n' + e);
-            showLoading(false);
-            return false;
-        }
-        showLoading(false);
-        return true;
-        }
-        
-        function showLoading(b) {
-        document.getElementById('loading-overlay').style.display = b ? 'flex' : 'none';
-        }
-        
-        //  PRACTICE MODE
+    const { topIdx, topConf, topLabel } = getTop(predictions);
 
-        async function startPractice() {
-        const ok = await loadModel();
-        if (!ok) return;
-        
-        showScreen('screen-practice');
-        
-        const canvas = document.getElementById('canvas-practice');
-        canvas.width = 300; canvas.height = 300;
-        ctxP = canvas.getContext('2d');
-        
-        webcamPractice = new tmPose.Webcam(300, 300, true);
-        await webcamPractice.setup();
-        await webcamPractice.play();
-        
-        practiceLoop();
-        }
-        
-        async function practiceLoop() {
-        if (!webcamPractice) return;
-        webcamPractice.update();
-        
-        const { pose, posenetOutput } = await model.estimatePose(webcamPractice.canvas);
-        const predictions = await model.predict(posenetOutput);
-        
-        // draw
-        ctxP.drawImage(webcamPractice.canvas, 0, 0);
-        if (pose) {
-            tmPose.drawKeypoints(pose.keypoints, 0.5, ctxP);
-            tmPose.drawSkeleton(pose.keypoints, 0.5, ctxP);
-        }
-        
-        // labels
-        const labEl = document.getElementById('practice-labels');
-        const indEl = document.getElementById('practice-indicator');
-        const txtEl = document.getElementById('practice-pose-text');
-        const statusEl = document.getElementById('practice-status');
-        
-        let html = '';
-        let topClass = '', topConf = 0;
-        predictions.forEach(p => {
-            if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
-            html += `<span>${p.className}: ${(p.probability*100).toFixed(0)}%</span>  `;
-        });
-        labEl.innerHTML = html;
-        
-        if (topConf > CONFIDENCE_THRESHOLD) {
-            txtEl.textContent = topClass;
-            const isUp   = topClass === CLASS_UP;
-            const isDown = topClass === CLASS_DOWN;
-            indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
-            statusEl.textContent = isUp   ? '✅ Staand herkend!' :
-                                isDown ? '🔽 Squat herkend!' : '';
-        } else {
-            txtEl.textContent = 'Onzeker...';
-            indEl.className = 'pose-indicator';
-            statusEl.textContent = '⚠️ Ga iets dichter bij de camera staan.';
-        }
-        
-        animFrame = requestAnimationFrame(practiceLoop);
-        }
-        
-        function skipPractice() {
-        loadModel().then(ok => {
-            if (ok) beginGameSetup();
-        });
-        }
-        
-        async function goToGame() {
-        if (webcamPractice) {
-            webcamPractice.stop();
-            webcamPractice = null;
-        }
-        cancelAnimationFrame(animFrame);
-        beginGameSetup();
-        }
+    // Debug: alle klassen live zichtbaar
+    document.getElementById('practice-debug').textContent =
+      predictions.map((p,i) => `[${i}] ${p.className}: ${(p.probability*100).toFixed(0)}%`).join('  |  ');
 
-        //  COUNTDOWN THEN GAME
+    const indEl = document.getElementById('practice-indicator');
+    const txtEl = document.getElementById('practice-pose-text');
+    const statusEl = document.getElementById('practice-status');
 
-        async function beginGameSetup() {
-        showScreen('screen-game');
-        
-        // Update HS
-        document.getElementById('game-hs').textContent = getHighscore();
-        
-        // Setup canvas
-        const canvas = document.getElementById('canvas-game');
-        canvas.width = 300; canvas.height = 300;
-        ctxG = canvas.getContext('2d');
-        
-        // Start webcam
-        webcamGame = new tmPose.Webcam(300, 300, true);
-        await webcamGame.setup();
-        await webcamGame.play();
-        
-        // Countdown
-        await countdown(3);
-        
-        // Init game state
-        squatCount    = 0;
-        timeLeft      = gameDuration;
-        currentPose   = '';
-        lastCounted   = '';
-        bestStreak    = 0;
-        currentStreak = 0;
-        gameActive    = true;
-        paused        = false;
-        gameStartTime = Date.now();
-        
-        updateCounter(0);
-        updateTimerDisplay();
-        buildProbBars();
-        
-        timerInterval = setInterval(tickTimer, 1000);
-        gameLoop();
-        }
-        
-        function countdown(from) {
-        return new Promise(resolve => {
-            const overlay = document.getElementById('countdown-overlay');
-            const numEl   = document.getElementById('countdown-num');
-            overlay.style.display = 'flex';
-            let n = from;
-        
-            function tick() {
-            numEl.textContent = n;
-            numEl.style.animation = 'none';
-            void numEl.offsetWidth;
-            numEl.style.animation = 'countPulse .9s ease forwards';
-            if (n === 0) {
-                setTimeout(() => { overlay.style.display = 'none'; resolve(); }, 700);
-                return;
-            }
-            n--;
-            setTimeout(tick, 900);
-            }
-            tick();
-        });
-        }
+    if (topConf > CONFIDENCE_THRESHOLD) {
+      txtEl.textContent = topLabel;
+      const isUp   = topIdx === UP_IDX;
+      const isDown = topIdx === DOWN_IDX;
+      indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
+      statusEl.textContent = isUp   ? '✅ Staand herkend!' :
+                             isDown ? '🔽 Squat herkend!' : topLabel;
+      statusEl.style.color = isUp ? 'var(--green)' : 'var(--accent2)';
+    } else {
+      txtEl.textContent = `Onzeker (${(topConf*100).toFixed(0)}%)`;
+      indEl.className = 'pose-indicator';
+      statusEl.textContent = '⚠️ Ga dichter bij de camera staan.';
+      statusEl.style.color = 'var(--muted)';
+    }
+    animFrame = requestAnimationFrame(practiceLoop);
+  }
 
-        //  GAME LOOP
+  async function goToGame() {
+    if (webcamPractice) { webcamPractice.stop(); webcamPractice = null; }
+    cancelAnimationFrame(animFrame);
+    beginGameSetup();
+  }
+  function skipPractice() {
+    loadModel().then(ok => { if (ok) beginGameSetup(); });
+  }
 
-        async function gameLoop() {
-        if (!gameActive) return;
-        if (!paused) {
-            webcamGame.update();
-            const { pose, posenetOutput } = await model.estimatePose(webcamGame.canvas);
-            const predictions = await model.predict(posenetOutput);
-            processGamePredictions(predictions);
-            drawGamePose(pose);
-            updateProbBars(predictions);
-        }
-        animFrame = requestAnimationFrame(gameLoop);
-        }
-        
-        function processGamePredictions(predictions) {
-        let topClass = '', topConf = 0;
-        predictions.forEach(p => {
-            if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
-        });
-        
-        const indEl  = document.getElementById('game-indicator');
-        const txtEl  = document.getElementById('game-pose-text');
-        const statusEl = document.getElementById('game-status');
-        
-        if (topConf < CONFIDENCE_THRESHOLD) {
-            txtEl.textContent = 'Onzeker...';
-            indEl.className = 'pose-indicator';
-            return;
-        }
-        
-        txtEl.textContent = topClass;
-        const isUp   = topClass === CLASS_UP;
-        const isDown = topClass === CLASS_DOWN;
-        indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
-        
-        // Count squat: up → down → up = 1 squat
-        if (isDown && lastCounted !== 'down') {
-            currentPose = 'down';
-            lastCounted = 'down';
-            document.getElementById('canvas-game').className = 'squat-down';
-            statusEl.textContent = '🔽 Squat!';
-        } else if (isUp && lastCounted === 'down') {
-            // completed squat!
-            squatCount++;
-            currentStreak++;
-            if (currentStreak > bestStreak) bestStreak = currentStreak;
-            lastCounted = 'up';
-            currentPose = 'up';
-            document.getElementById('canvas-game').className = 'squat-up';
-            statusEl.textContent = `✅ +1  (totaal: ${squatCount})`;
-            updateCounter(squatCount);
-            updateStatsPanel();
-        } else if (isUp) {
-            lastCounted = 'up';
-            currentPose = 'up';
-        }
-        }
-        
-        function drawGamePose(pose) {
-        ctxG.drawImage(webcamGame.canvas, 0, 0);
-        if (pose) {
-            tmPose.drawKeypoints(pose.keypoints, 0.5, ctxG);
-            tmPose.drawSkeleton(pose.keypoints, 0.5, ctxG);
-        }
-        }
-        
-        //  TIMER
+  // ── COUNTDOWN ──
+  function countdown(from) {
+    return new Promise(resolve => {
+      const overlay = document.getElementById('countdown-overlay');
+      const numEl   = document.getElementById('countdown-num');
+      overlay.style.display = 'flex';
+      let n = from;
+      function tick() {
+        numEl.textContent = n === 0 ? 'GO!' : n;
+        numEl.style.animation = 'none';
+        void numEl.offsetWidth;
+        numEl.style.animation = 'countPulse .9s ease forwards';
+        if (n === 0) { setTimeout(() => { overlay.style.display = 'none'; resolve(); }, 700); return; }
+        n--;
+        setTimeout(tick, 900);
+      }
+      tick();
+    });
+  }
 
-        function tickTimer() {
-        if (paused || !gameActive) return;
-        timeLeft--;
-        updateTimerDisplay();
-        if (timeLeft <= 0) endGame();
-        }
-        
-        function updateTimerDisplay() {
-        document.getElementById('timer-display').textContent = timeLeft;
-        const fill = document.getElementById('timer-ring');
-        const offset = CIRC * (1 - timeLeft / gameDuration);
-        fill.style.strokeDashoffset = offset;
-        fill.style.stroke = timeLeft <= 10 ? 'var(--accent2)' : 'var(--accent)';
-        }
-        
-        function togglePause() {
-        paused = !paused;
-        document.getElementById('pause-btn').textContent = paused ? '▶ Hervat' : '⏸ Pauzeer';
-        }
-        
-        //  COUNTER UI
+  // ── GAME SETUP ──
+  async function beginGameSetup() {
+    showScreen('screen-game');
+    document.getElementById('game-hs').textContent = getHighscore();
+    const canvas = document.getElementById('canvas-game');
+    canvas.width = CAM_SIZE; canvas.height = CAM_SIZE;
+    ctxG = canvas.getContext('2d');
+    showLoading(true, 'Camera opstarten...');
+    webcamGame = new tmPose.Webcam(CAM_SIZE, CAM_SIZE, true);
+    await webcamGame.setup();
+    await webcamGame.play();
+    showLoading(false);
+    await countdown(3);
 
-        function updateCounter(n) {
-        document.getElementById('game-count').textContent = n;
-        const big = document.getElementById('big-count');
-        big.textContent = n;
-        big.classList.remove('pop');
-        void big.offsetWidth;
-        big.classList.add('pop');
-        }
-        
-        function updateStatsPanel() {
-        const elapsed = (Date.now() - gameStartTime) / 1000 / 60;
-        const rpm = elapsed > 0 ? (squatCount / elapsed).toFixed(1) : '—';
-        document.getElementById('stat-rpm').textContent = rpm;
-        document.getElementById('stat-streak').textContent = bestStreak;
-        }
-        
-        //  PROBABILITY BARS
+    // Reset state
+    squadCount = 0; timeLeft = gameDuration; lastCounted = '';
+    bestStreak = 0; currentStreak = 0;
+    gameActive = true; paused = false;
+    gameStartTime = Date.now();
+    document.getElementById('pause-btn').textContent = '⏸ Pause';
+    document.getElementById('canvas-game').className = '';
+    updateCounter(0);
+    updateTimerDisplay();
+    buildProbBars();
+    timerInterval = setInterval(tickTimer, 1000);
+    gameLoop();
+  }
 
-        function buildProbBars() {
-        if (!model) return;
-        const container = document.getElementById('prob-bars');
-        container.innerHTML = '';
-        for (let i = 0; i < maxPredictions; i++) {
-            const row = document.createElement('div');
-            row.className = 'prob-row';
-            row.innerHTML = `
-            <div class="prob-row-label">
-                <span id="pb-name-${i}">—</span>
-                <span id="pb-pct-${i}">0%</span>
-            </div>
-            <div class="prob-bar-bg">
-                <div class="prob-bar-fill ${i === 1 ? 'bar-down' : ''}" id="pb-fill-${i}" style="width:0%"></div>
-            </div>`;
-            container.appendChild(row);
-        }
-        }
-        
-        function updateProbBars(predictions) {
-        predictions.forEach((p, i) => {
-            const pct = (p.probability * 100).toFixed(0);
-            const el = document.getElementById(`pb-fill-${i}`);
-            const nameEl = document.getElementById(`pb-name-${i}`);
-            const pctEl  = document.getElementById(`pb-pct-${i}`);
-            if (el) { el.style.width = pct + '%'; }
-            if (nameEl) nameEl.textContent = p.className;
-            if (pctEl)  pctEl.textContent  = pct + '%';
-        });
-        }
-        
-        //  END GAME
+  // ── GAME LOOP ──
+  async function gameLoop() {
+    if (!gameActive) return;
+    if (!paused) {
+      webcamGame.update();
+      const { pose, posenetOutput } = await model.estimatePose(webcamGame.canvas);
+      const predictions = await model.predict(posenetOutput);
+      processGamePredictions(predictions);
+      drawGamePose(pose);
+      updateProbBars(predictions);
+    }
+    animFrame = requestAnimationFrame(gameLoop);
+  }
 
-        function endGame() {
-        gameActive = false;
-        clearInterval(timerInterval);
-        cancelAnimationFrame(animFrame);
-        if (webcamGame) { webcamGame.stop(); webcamGame = null; }
-        
-        saveRun(squatCount, gameDuration);
-        
-        const hs = getHighscore();
-        const isRecord = squatCount >= hs;
-        
-        document.getElementById('result-score').textContent = squatCount;
-        document.getElementById('result-time').textContent = gameDuration + 's';
-        const badge = document.getElementById('result-badge');
-        badge.textContent = isRecord ? '🏆 NIEUW RECORD!' : `Highscore: ${hs}`;
-        badge.style.background = isRecord ? 'var(--green)' : 'var(--accent)';
-        
-        renderHistory();
-        showScreen('screen-result');
-        }
-        
-        function renderHistory() {
-        const history = getHistory();
-        const list = document.getElementById('history-list');
-        list.innerHTML = '';
-        const hs = getHighscore();
-        history.forEach((run, idx) => {
-            const div = document.createElement('div');
-            div.className = 'history-item ' + (run.score === hs ? 'top' : '');
-            div.innerHTML = `<span>${run.date} (${run.duration}s)</span><span class="hi-score">${run.score} squats</span>`;
-            list.appendChild(div);
-        });
-        }
-        
-        //  RESTART
+  function processGamePredictions(predictions) {
+    const { topIdx, topConf, topLabel } = getTop(predictions);
 
-        function restartGame() {
-        showScreen('screen-game');
-        beginGameSetup();
-        }
-        
-        //  INIT
+    const indEl    = document.getElementById('game-indicator');
+    const txtEl    = document.getElementById('game-pose-text');
+    const statusEl = document.getElementById('game-status');
+    const debugEl  = document.getElementById('game-debug');
 
-        updateLandingHighscore();
-    </script>
-</body>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/pose
+    // Live debug info
+    debugEl.textContent =
+      predictions.map((p,i) => `[${i}] ${p.className}: ${(p.probability*100).toFixed(0)}%`).join('  |  ')
+      + `   staat: ${lastCounted || '—'}`;
 
-    // the link to your model provided by Teachable Machine export panel
-    const URL = "./my_model/";
-    let model, webcam, ctx, labelContainer, maxPredictions;
-
-    async function init() {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // Note: the pose library adds a tmPose object to your window (window.tmPose)
-        model = await tmPose.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-
-        // Convenience function to setup a webcam
-        const size = 200;
-        const flip = true; // whether to flip the webcam
-        webcam = new tmPose.Webcam(size, size, flip); // width, height, flip
-        await webcam.setup(); // request access to the webcam
-        await webcam.play();
-        window.requestAnimationFrame(loop);
-
-        // append/get elements to the DOM
-        const canvas = document.getElementById("canvas");
-        canvas.width = size; canvas.height = size;
-        ctx = canvas.getContext("2d");
-        labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
-        }
+    if (topConf < CONFIDENCE_THRESHOLD) {
+      txtEl.textContent = 'Onzeker...';
+      indEl.className = 'pose-indicator';
+      return;
     }
 
-    async function loop(timestamp) {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
+    const isUp   = topIdx === UP_IDX;
+    const isDown = topIdx === DOWN_IDX;
+    txtEl.textContent = topLabel;
+    indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
+
+    if (isDown && lastCounted !== 'down') {
+      // Naar beneden gegaan
+      lastCounted = 'down';
+      document.getElementById('canvas-game').className = 'squad-down';
+      statusEl.textContent = '🔽 Naar beneden!';
+      statusEl.style.color = 'var(--accent2)';
+
+    } else if (isUp && lastCounted === 'down') {
+      // Squat voltooid: down → up = +1 punt!
+      squadCount++;
+      currentStreak++;
+      if (currentStreak > bestStreak) bestStreak = currentStreak;
+      lastCounted = 'up';
+      document.getElementById('canvas-game').className = 'squad-up';
+      statusEl.textContent = `✅ +1 punt! Totaal: ${squadCount}`;
+      statusEl.style.color = 'var(--green)';
+      updateCounter(squadCount);
+      updateStatsPanel();
+
+    } else if (isUp && lastCounted === '') {
+      // Startpositie instellen (staat rechtop bij begin)
+      lastCounted = 'up';
     }
+  }
 
-    async function predict() {
-        // Prediction #1: run input through posenet
-        // estimatePose can take in an image, video or canvas html element
-        const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
-        // Prediction 2: run input through teachable machine classification model
-        const prediction = await model.predict(posenetOutput);
+  function drawGamePose(pose) {
+    ctxG.drawImage(webcamGame.canvas, 0, 0);
+    if (pose) { tmPose.drawKeypoints(pose.keypoints, 0.5, ctxG); tmPose.drawSkeleton(pose.keypoints, 0.5, ctxG); }
+  }
 
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
-        }
+  // ── TIMER ──
+  function tickTimer() {
+    if (paused || !gameActive) return;
+    timeLeft--;
+    updateTimerDisplay();
+    if (timeLeft <= 0) endGame();
+  }
+  function updateTimerDisplay() {
+    document.getElementById('timer-display').textContent = timeLeft;
+    const fill = document.getElementById('timer-ring');
+    fill.style.strokeDashoffset = CIRC * (1 - timeLeft / gameDuration);
+    fill.style.stroke = timeLeft <= 10 ? 'var(--accent2)' : 'var(--accent)';
+  }
+  function togglePause() {
+    paused = !paused;
+    document.getElementById('pause-btn').textContent = paused ? '▶ Resume' : '⏸ Pause';
+  }
 
-        // finally draw the poses
-        drawPose(pose);
+  // ── COUNTER UI ──
+  function updateCounter(n) {
+    document.getElementById('game-count').textContent = n;
+    const big = document.getElementById('big-count');
+    big.textContent = n;
+    big.classList.remove('pop');
+    void big.offsetWidth;
+    big.classList.add('pop');
+  }
+  function updateStatsPanel() {
+    const elapsed = (Date.now() - gameStartTime) / 60000;
+    document.getElementById('stat-rpm').textContent = elapsed > 0 ? (squadCount / elapsed).toFixed(1) : '—';
+    document.getElementById('stat-streak').textContent = bestStreak;
+  }
+
+  // ── PROB BARS ──
+  function buildProbBars() {
+    if (!model) return;
+    const container = document.getElementById('prob-bars');
+    container.innerHTML = '';
+    for (let i = 0; i < maxPredictions; i++) {
+      const row = document.createElement('div');
+      row.className = 'prob-row';
+      row.innerHTML = `
+        <div class="prob-row-label"><span id="pb-name-${i}">—</span><span id="pb-pct-${i}">0%</span></div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill ${i === DOWN_IDX ? 'bar-down' : ''}" id="pb-fill-${i}" style="width:0%"></div></div>`;
+      container.appendChild(row);
     }
+  }
+  function updateProbBars(predictions) {
+    predictions.forEach((p, i) => {
+      const pct = (p.probability * 100).toFixed(0);
+      const f  = document.getElementById(`pb-fill-${i}`);
+      const nm = document.getElementById(`pb-name-${i}`);
+      const pc = document.getElementById(`pb-pct-${i}`);
+      if (f)  f.style.width    = pct + '%';
+      if (nm) nm.textContent   = p.className;
+      if (pc) pc.textContent   = pct + '%';
+    });
+  }
 
-    function drawPose(pose) {
-        if (webcam.canvas) {
-            ctx.drawImage(webcam.canvas, 0, 0);
-            // draw the keypoints and skeleton
-            if (pose) {
-                const minPartConfidence = 0.5;
-                tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
-                tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
-            }
-        }
-    }
+  // ── END GAME ──
+  function endGame() {
+    gameActive = false;
+    clearInterval(timerInterval);
+    cancelAnimationFrame(animFrame);
+    if (webcamGame) { webcamGame.stop(); webcamGame = null; }
+    saveRun(squadCount, gameDuration);
+    const hs = getHighscore();
+    const isRecord = squadCount >= hs;
+    document.getElementById('result-score').textContent = squadCount;
+    document.getElementById('result-time').textContent = gameDuration;
+    const badge = document.getElementById('result-badge');
+    badge.textContent = isRecord ? '🏆 NEW RECORD!' : `Highscore: ${hs}`;
+    badge.style.background = isRecord ? 'var(--green)' : 'var(--accent)';
+    renderHistory();
+    showScreen('screen-result');
+  }
+  function renderHistory() {
+    const history = getHistory();
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    const hs = getHighscore();
+    history.forEach(run => {
+      const div = document.createElement('div');
+      div.className = 'history-item ' + (run.score === hs ? 'top' : '');
+      div.innerHTML = `<span>${run.date} (${run.duration}s)</span><span class="hi-score">${run.score} squats</span>`;
+      list.appendChild(div);
+    });
+  }
+
+  // ── RESTART ──
+  function restartGame() { beginGameSetup(); }
+
+  // ── INIT ──
+  updateLandingHighscore();
 </script>
+</body>
+</html>
