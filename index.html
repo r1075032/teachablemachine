@@ -4,6 +4,599 @@
 <div id="label-container"></div>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+
+<style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --card: #1a1a26;
+      --border: #2a2a3d;
+      --accent: #e8ff3e;
+      --accent2: #ff3e6c;
+      --text: #f0f0f8;
+      --muted: #6b6b8a;
+      --green: #3effb4;
+    }
+ 
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+ 
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+ 
+    /* ─── NOISE OVERLAY ─── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 9999; opacity: .4;
+    }
+ 
+    /* ─── SCREENS ─── */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+ 
+    /* ════════════════════════════════
+       LANDING SCREEN
+    ════════════════════════════════ */
+    #screen-landing {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+      position: relative;
+    }
+ 
+    .bg-glow {
+      position: absolute;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,255,62,.06) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+ 
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 12vw, 8rem);
+      letter-spacing: .04em;
+      line-height: 1;
+      color: var(--accent);
+      text-shadow: 0 0 60px rgba(232,255,62,.3);
+      animation: pulse 3s ease-in-out infinite;
+    }
+ 
+    .logo span { color: var(--text); }
+ 
+    @keyframes pulse {
+      0%, 100% { text-shadow: 0 0 60px rgba(232,255,62,.3); }
+      50%       { text-shadow: 0 0 100px rgba(232,255,62,.6); }
+    }
+ 
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin: 1rem 0 3rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+ 
+    .timer-setup {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 380px;
+      margin-bottom: 2rem;
+    }
+ 
+    .timer-setup h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: .08em;
+      margin-bottom: 1.2rem;
+      color: var(--muted);
+    }
+ 
+    .time-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .6rem;
+      margin-bottom: 1rem;
+    }
+ 
+    .time-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .7rem;
+      border-radius: 10px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: all .2s;
+    }
+ 
+    .time-btn:hover, .time-btn.selected {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+ 
+    .custom-time {
+      display: flex;
+      align-items: center;
+      gap: .8rem;
+      margin-top: .6rem;
+    }
+ 
+    .custom-time label {
+      font-size: .85rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+ 
+    .custom-time input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .5rem .8rem;
+      border-radius: 8px;
+      width: 80px;
+      font-size: 1rem;
+      font-family: 'Bebas Neue', sans-serif;
+      text-align: center;
+      outline: none;
+    }
+ 
+    .custom-time input:focus { border-color: var(--accent); }
+ 
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 1rem 2.4rem;
+      border-radius: 50px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: .08em;
+      cursor: pointer;
+      transition: all .2s;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+ 
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(232,255,62,.3);
+    }
+ 
+    .btn-secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: .7rem 1.6rem;
+      border-radius: 50px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: all .2s;
+      margin-top: .8rem;
+    }
+ 
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+ 
+    .highscore-preview {
+      margin-top: 2rem;
+      font-size: .85rem;
+      color: var(--muted);
+    }
+ 
+    .highscore-preview strong { color: var(--accent); font-size: 1.1rem; }
+ 
+    /* ════════════════════════════════
+       PRACTICE SCREEN
+    ════════════════════════════════ */
+    #screen-practice {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+    }
+ 
+    .practice-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.5rem;
+      letter-spacing: .06em;
+      margin-bottom: .3rem;
+    }
+ 
+    .practice-sub {
+      color: var(--muted);
+      font-size: .95rem;
+      margin-bottom: 1.5rem;
+    }
+ 
+    /* ════════════════════════════════
+       GAME SCREEN
+    ════════════════════════════════ */
+    #screen-game {
+      flex-direction: column;
+      min-height: 100vh;
+    }
+ 
+    .game-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 2rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+ 
+    .stat-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+ 
+    .stat-label {
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted);
+    }
+ 
+    .stat-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem;
+      line-height: 1;
+      color: var(--accent);
+    }
+ 
+    .stat-value.danger { color: var(--accent2); }
+    .stat-value.green  { color: var(--green); }
+ 
+    .game-body {
+      flex: 1;
+      display: flex;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+      flex-wrap: wrap;
+    }
+ 
+    .camera-panel {
+      flex: 1;
+      min-width: 260px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+ 
+    #canvas {
+      border-radius: 16px;
+      border: 2px solid var(--border);
+      max-width: 100%;
+      transition: border-color .3s;
+    }
+ 
+    #canvas.squat-down { border-color: var(--accent2); box-shadow: 0 0 30px rgba(255,62,108,.2); }
+    #canvas.squat-up   { border-color: var(--green);   box-shadow: 0 0 30px rgba(62,255,180,.2); }
+ 
+    .pose-indicator {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .5rem 1.2rem;
+      border-radius: 50px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      font-size: .9rem;
+      font-weight: 600;
+      transition: all .3s;
+    }
+ 
+    .pose-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+ 
+    .pose-indicator.up   .pose-dot { background: var(--green); }
+    .pose-indicator.down .pose-dot { background: var(--accent2); }
+ 
+    .info-panel {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+ 
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.2rem;
+    }
+ 
+    .info-card h4 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: .8rem;
+    }
+ 
+    .prob-bar-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+ 
+    .prob-row { display: flex; flex-direction: column; gap: .2rem; }
+ 
+    .prob-row-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+    }
+ 
+    .prob-bar-bg {
+      background: var(--surface);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+ 
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .2s ease;
+      background: var(--accent);
+    }
+ 
+    .prob-bar-fill.bar-down { background: var(--accent2); }
+ 
+    /* squat counter big display */
+    .squat-counter-big {
+      text-align: center;
+    }
+ 
+    .squat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 6rem;
+      line-height: 1;
+      color: var(--accent);
+      transition: transform .1s;
+    }
+ 
+    .squat-num.pop {
+      animation: pop .25s ease;
+    }
+ 
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.3); color: var(--green); }
+      100% { transform: scale(1); }
+    }
+ 
+    /* timer ring */
+    .timer-ring-wrap {
+      position: relative;
+      width: 80px; height: 80px;
+      margin: 0 auto;
+    }
+ 
+    .timer-ring-wrap svg { transform: rotate(-90deg); }
+ 
+    .timer-ring-bg   { fill: none; stroke: var(--border); stroke-width: 5; }
+    .timer-ring-fill { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .9s linear, stroke .5s; }
+ 
+    .timer-ring-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      color: var(--text);
+    }
+ 
+    /* ════════════════════════════════
+       RESULT SCREEN
+    ════════════════════════════════ */
+    #screen-result {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+    }
+ 
+    .result-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 8vw, 5rem);
+      letter-spacing: .04em;
+      color: var(--accent);
+      margin-bottom: .2rem;
+    }
+ 
+    .result-score {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(6rem, 18vw, 12rem);
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: .5rem 0;
+    }
+ 
+    .result-sub {
+      font-size: 1rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+ 
+    .result-badge {
+      background: var(--accent);
+      color: #000;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: .1em;
+      padding: .4rem 1rem;
+      border-radius: 50px;
+      display: inline-block;
+      margin-bottom: 2rem;
+    }
+ 
+    .result-history {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.2rem 1.5rem;
+      max-width: 360px;
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+ 
+    .result-history h4 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: .8rem;
+    }
+ 
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+ 
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: .9rem;
+      padding: .3rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+ 
+    .history-item:last-child { border-bottom: none; }
+    .history-item .hi-score { font-weight: 700; color: var(--accent); }
+    .history-item.top .hi-score { color: var(--green); }
+ 
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+ 
+    /* loading overlay */
+    #loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,15,.9);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      display: none;
+    }
+ 
+    .spinner {
+      width: 50px; height: 50px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+ 
+    @keyframes spin { to { transform: rotate(360deg); } }
+ 
+    .loading-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: .1em;
+      color: var(--muted);
+    }
+ 
+    /* countdown overlay */
+    #countdown-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,15,.85);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+ 
+    .countdown-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20vw;
+      color: var(--accent);
+      animation: countPulse .9s ease forwards;
+    }
+ 
+    @keyframes countPulse {
+      from { transform: scale(1.5); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+ 
+    .countdown-label {
+      font-size: 1.2rem;
+      color: var(--muted);
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+ 
+    /* pause button */
+    .btn-pause {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .5rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .85rem;
+      transition: all .2s;
+    }
+ 
+    .btn-pause:hover { border-color: var(--muted); }
+ 
+    /* status messages */
+    .status-msg {
+      font-size: 1rem;
+      font-weight: 600;
+      min-height: 1.4em;
+      color: var(--green);
+      transition: color .3s;
+    }
+ 
+    @media (max-width: 640px) {
+      .game-body { flex-direction: column; }
+      .info-panel { width: 100%; }
+    }
+  </style>
 <body>
         <!-- SCREEN 1 – LANDING-->
     <div id="screen-landing" class="screen active">
