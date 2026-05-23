@@ -315,6 +315,69 @@
     cancelAnimationFrame(animFrame);
     beginGameSetup();
     }
+
+    //  COUNTDOWN THEN GAME
+
+    async function beginGameSetup() {
+    showScreen('screen-game');
+    
+    // Update HS
+    document.getElementById('game-hs').textContent = getHighscore();
+    
+    // Setup canvas
+    const canvas = document.getElementById('canvas-game');
+    canvas.width = 300; canvas.height = 300;
+    ctxG = canvas.getContext('2d');
+    
+    // Start webcam
+    webcamGame = new tmPose.Webcam(300, 300, true);
+    await webcamGame.setup();
+    await webcamGame.play();
+    
+    // Countdown
+    await countdown(3);
+    
+    // Init game state
+    squatCount    = 0;
+    timeLeft      = gameDuration;
+    currentPose   = '';
+    lastCounted   = '';
+    bestStreak    = 0;
+    currentStreak = 0;
+    gameActive    = true;
+    paused        = false;
+    gameStartTime = Date.now();
+    
+    updateCounter(0);
+    updateTimerDisplay();
+    buildProbBars();
+    
+    timerInterval = setInterval(tickTimer, 1000);
+    gameLoop();
+    }
+    
+    function countdown(from) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('countdown-overlay');
+        const numEl   = document.getElementById('countdown-num');
+        overlay.style.display = 'flex';
+        let n = from;
+    
+        function tick() {
+        numEl.textContent = n;
+        numEl.style.animation = 'none';
+        void numEl.offsetWidth;
+        numEl.style.animation = 'countPulse .9s ease forwards';
+        if (n === 0) {
+            setTimeout(() => { overlay.style.display = 'none'; resolve(); }, 700);
+            return;
+        }
+        n--;
+        setTimeout(tick, 900);
+        }
+        tick();
+    });
+    }
     
 </body>
 <script type="text/javascript">
