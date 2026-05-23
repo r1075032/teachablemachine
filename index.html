@@ -57,6 +57,87 @@
         <button class="btn-secondary" onclick="showScreen('screen-landing')">← Back</button>
     </div>
     </div>
+
+        <!-- SCREEN 3 – GAME -->
+    <div id="screen-game" class="screen">
+    <div class="game-header">
+        <div class="stat-block">
+        <span class="stat-label">Squats</span>
+        <span class="stat-value" id="game-count">0</span>
+        </div>
+        <div class="stat-block">
+        <div class="timer-ring-wrap">
+            <svg viewBox="0 0 80 80" width="80" height="80">
+            <circle class="timer-ring-bg" cx="40" cy="40" r="35"/>
+            <circle class="timer-ring-fill" id="timer-ring" cx="40" cy="40" r="35"
+                    stroke-dasharray="219.9" stroke-dashoffset="0"/>
+            </svg>
+            <div class="timer-ring-text" id="timer-display">60</div>
+        </div>
+        </div>
+        <div class="stat-block">
+        <span class="stat-label">Highscore</span>
+        <span class="stat-value green" id="game-hs">0</span>
+        </div>
+        <button class="btn-pause" onclick="togglePause()" id="pause-btn">⏸ Pauzeer</button>
+    </div>
+    
+    <div class="game-body">
+        <div class="camera-panel">
+        <canvas id="canvas-game"></canvas>
+        <div class="pose-indicator" id="game-indicator">
+            <div class="pose-dot"></div>
+            <span id="game-pose-text">Wachten...</span>
+        </div>
+        <div class="status-msg" id="game-status"></div>
+        </div>
+    
+        <div class="info-panel">
+        <div class="info-card squat-counter-big">
+            <h4>SQUATS</h4>
+            <div class="squat-num" id="big-count">0</div>
+        </div>
+    
+        <div class="info-card">
+            <h4>MODEL ZEKERHEID</h4>
+            <div class="prob-bar-wrap" id="prob-bars"></div>
+        </div>
+    
+        <div class="info-card">
+            <h4>SESSIE STATISTIEKEN</h4>
+            <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.85rem;">
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:var(--muted)">Squats/min</span>
+                <span id="stat-rpm">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:var(--muted)">Beste streak</span>
+                <span id="stat-streak">0</span>
+            </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    </div>
+
+        <!-- SCREEN 4 – RESULT -->
+    <div id="screen-result" class="screen">
+    <div class="result-title">Resultaat</div>
+    <div class="result-score" id="result-score">0</div>
+    <div class="result-sub">squats in <span id="result-time">?</span> seconden</div>
+    <div class="result-badge" id="result-badge">NIEUW RECORD 🏆</div>
+    
+    <div class="result-history">
+        <h4>📋 Geschiedenis (opgeslagen in localstorage)</h4>
+        <div class="history-list" id="history-list"></div>
+    </div>
+    
+    <div class="btn-group">
+        <button class="btn-primary" onclick="restartGame()">🔄 Opnieuw</button>
+        <button class="btn-secondary" onclick="showScreen('screen-landing')">🏠 Home</button>
+    </div>
+    </div>
+    </script>
 </body>
 <script type="text/javascript">
     // More API functions here:
