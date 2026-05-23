@@ -139,246 +139,433 @@
     </div>
 
     </script>
-    //  CONFIG
+        //  CONFIG
 
-    const MODEL_URL = './my_model/';   // ← jouw Teachable Machine map
-    const CLASS_UP   = 'Squat Up';    // ← exacte class naam uit Teachable Machine
-    const CLASS_DOWN = 'Squat Down';  // ← exacte class naam uit Teachable Machine
-    const CONFIDENCE_THRESHOLD = 0.70; // hoe zeker het model moet zijn
+        const MODEL_URL = './my_model/';   // ← jouw Teachable Machine map
+        const CLASS_UP   = 'Squat Up';    // ← exacte class naam uit Teachable Machine
+        const CLASS_DOWN = 'Squat Down';  // ← exacte class naam uit Teachable Machine
+        const CONFIDENCE_THRESHOLD = 0.70; // hoe zeker het model moet zijn
 
-    //  STATE
+        //  STATE
 
-    let model, webcamPractice, webcamGame, ctxP, ctxG;
-    let maxPredictions;
-    let gameActive   = false;
-    let paused       = false;
-    let gameDuration = 60;
-    let timeLeft     = 60;
-    let squatCount   = 0;
-    let currentPose  = '';   // 'up' | 'down'
-    let lastCounted  = '';   // last pose that was counted
-    let timerInterval;
-    let animFrame;
-    let gameStartTime;
-    let bestStreak   = 0;
-    let currentStreak = 0;
- 
-    const CIRC = 2 * Math.PI * 35; // circle circumference
-
-    //  LOCALSTORAGE
-
-    function getHistory() {
-    try { return JSON.parse(localStorage.getItem('squatzone_history') || '[]'); }
-    catch { return []; }
-    }
+        let model, webcamPractice, webcamGame, ctxP, ctxG;
+        let maxPredictions;
+        let gameActive   = false;
+        let paused       = false;
+        let gameDuration = 60;
+        let timeLeft     = 60;
+        let squatCount   = 0;
+        let currentPose  = '';   // 'up' | 'down'
+        let lastCounted  = '';   // last pose that was counted
+        let timerInterval;
+        let animFrame;
+        let gameStartTime;
+        let bestStreak   = 0;
+        let currentStreak = 0;
     
-    function saveRun(score, duration) {
-    const history = getHistory();
-    history.unshift({ score, duration, date: new Date().toLocaleDateString('nl-BE') });
-    if (history.length > 20) history.pop();
-    localStorage.setItem('squatzone_history', JSON.stringify(history));
-    }
-    
-    function getHighscore() {
-    const h = getHistory();
-    return h.length ? Math.max(...h.map(r => r.score)) : 0;
-    }
-    
-    //  SCREEN ROUTING
+        const CIRC = 2 * Math.PI * 35; // circle circumference
 
-    function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    }
-    
-    //  LANDING
+        //  LOCALSTORAGE
 
-    document.querySelectorAll('.time-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        document.getElementById('custom-sec').value = '';
-        gameDuration = parseInt(btn.dataset.sec);
-    });
-    });
-    
-    document.getElementById('custom-sec').addEventListener('input', function() {
-    if (this.value) {
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-        gameDuration = parseInt(this.value) || 60;
-    }
-    });
-    
-    function updateLandingHighscore() {
-    const hs = getHighscore();
-    const el = document.getElementById('hs-preview');
-    el.innerHTML = hs > 0
-        ? `Highscore: <strong>${hs} squats</strong>`
-        : 'Nog geen scores opgeslagen.';
-    }
+        function getHistory() {
+        try { return JSON.parse(localStorage.getItem('squatzone_history') || '[]'); }
+        catch { return []; }
+        }
+        
+        function saveRun(score, duration) {
+        const history = getHistory();
+        history.unshift({ score, duration, date: new Date().toLocaleDateString('nl-BE') });
+        if (history.length > 20) history.pop();
+        localStorage.setItem('squatzone_history', JSON.stringify(history));
+        }
+        
+        function getHighscore() {
+        const h = getHistory();
+        return h.length ? Math.max(...h.map(r => r.score)) : 0;
+        }
+        
+        //  SCREEN ROUTING
 
-    //  MODEL INIT
+        function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        }
+        
+        //  LANDING
 
-    async function loadModel() {
-    showLoading(true);
-    try {
-        model = await tmPose.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
-        maxPredictions = model.getTotalClasses();
-        buildProbBars();
-    } catch(e) {
-        alert('Model kon niet geladen worden. Zorg dat de map "my_model" aanwezig is.\n\n' + e);
+        document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('custom-sec').value = '';
+            gameDuration = parseInt(btn.dataset.sec);
+        });
+        });
+        
+        document.getElementById('custom-sec').addEventListener('input', function() {
+        if (this.value) {
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+            gameDuration = parseInt(this.value) || 60;
+        }
+        });
+        
+        function updateLandingHighscore() {
+        const hs = getHighscore();
+        const el = document.getElementById('hs-preview');
+        el.innerHTML = hs > 0
+            ? `Highscore: <strong>${hs} squats</strong>`
+            : 'Nog geen scores opgeslagen.';
+        }
+
+        //  MODEL INIT
+
+        async function loadModel() {
+        showLoading(true);
+        try {
+            model = await tmPose.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
+            maxPredictions = model.getTotalClasses();
+            buildProbBars();
+        } catch(e) {
+            alert('Model kon niet geladen worden. Zorg dat de map "my_model" aanwezig is.\n\n' + e);
+            showLoading(false);
+            return false;
+        }
         showLoading(false);
-        return false;
-    }
-    showLoading(false);
-    return true;
-    }
-    
-    function showLoading(b) {
-    document.getElementById('loading-overlay').style.display = b ? 'flex' : 'none';
-    }
-    
-    //  PRACTICE MODE
+        return true;
+        }
+        
+        function showLoading(b) {
+        document.getElementById('loading-overlay').style.display = b ? 'flex' : 'none';
+        }
+        
+        //  PRACTICE MODE
 
-    async function startPractice() {
-    const ok = await loadModel();
-    if (!ok) return;
-    
-    showScreen('screen-practice');
-    
-    const canvas = document.getElementById('canvas-practice');
-    canvas.width = 300; canvas.height = 300;
-    ctxP = canvas.getContext('2d');
-    
-    webcamPractice = new tmPose.Webcam(300, 300, true);
-    await webcamPractice.setup();
-    await webcamPractice.play();
-    
-    practiceLoop();
-    }
-    
-    async function practiceLoop() {
-    if (!webcamPractice) return;
-    webcamPractice.update();
-    
-    const { pose, posenetOutput } = await model.estimatePose(webcamPractice.canvas);
-    const predictions = await model.predict(posenetOutput);
-    
-    // draw
-    ctxP.drawImage(webcamPractice.canvas, 0, 0);
-    if (pose) {
-        tmPose.drawKeypoints(pose.keypoints, 0.5, ctxP);
-        tmPose.drawSkeleton(pose.keypoints, 0.5, ctxP);
-    }
-    
-    // labels
-    const labEl = document.getElementById('practice-labels');
-    const indEl = document.getElementById('practice-indicator');
-    const txtEl = document.getElementById('practice-pose-text');
-    const statusEl = document.getElementById('practice-status');
-    
-    let html = '';
-    let topClass = '', topConf = 0;
-    predictions.forEach(p => {
-        if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
-        html += `<span>${p.className}: ${(p.probability*100).toFixed(0)}%</span>  `;
-    });
-    labEl.innerHTML = html;
-    
-    if (topConf > CONFIDENCE_THRESHOLD) {
+        async function startPractice() {
+        const ok = await loadModel();
+        if (!ok) return;
+        
+        showScreen('screen-practice');
+        
+        const canvas = document.getElementById('canvas-practice');
+        canvas.width = 300; canvas.height = 300;
+        ctxP = canvas.getContext('2d');
+        
+        webcamPractice = new tmPose.Webcam(300, 300, true);
+        await webcamPractice.setup();
+        await webcamPractice.play();
+        
+        practiceLoop();
+        }
+        
+        async function practiceLoop() {
+        if (!webcamPractice) return;
+        webcamPractice.update();
+        
+        const { pose, posenetOutput } = await model.estimatePose(webcamPractice.canvas);
+        const predictions = await model.predict(posenetOutput);
+        
+        // draw
+        ctxP.drawImage(webcamPractice.canvas, 0, 0);
+        if (pose) {
+            tmPose.drawKeypoints(pose.keypoints, 0.5, ctxP);
+            tmPose.drawSkeleton(pose.keypoints, 0.5, ctxP);
+        }
+        
+        // labels
+        const labEl = document.getElementById('practice-labels');
+        const indEl = document.getElementById('practice-indicator');
+        const txtEl = document.getElementById('practice-pose-text');
+        const statusEl = document.getElementById('practice-status');
+        
+        let html = '';
+        let topClass = '', topConf = 0;
+        predictions.forEach(p => {
+            if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
+            html += `<span>${p.className}: ${(p.probability*100).toFixed(0)}%</span>  `;
+        });
+        labEl.innerHTML = html;
+        
+        if (topConf > CONFIDENCE_THRESHOLD) {
+            txtEl.textContent = topClass;
+            const isUp   = topClass === CLASS_UP;
+            const isDown = topClass === CLASS_DOWN;
+            indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
+            statusEl.textContent = isUp   ? '✅ Staand herkend!' :
+                                isDown ? '🔽 Squat herkend!' : '';
+        } else {
+            txtEl.textContent = 'Onzeker...';
+            indEl.className = 'pose-indicator';
+            statusEl.textContent = '⚠️ Ga iets dichter bij de camera staan.';
+        }
+        
+        animFrame = requestAnimationFrame(practiceLoop);
+        }
+        
+        function skipPractice() {
+        loadModel().then(ok => {
+            if (ok) beginGameSetup();
+        });
+        }
+        
+        async function goToGame() {
+        if (webcamPractice) {
+            webcamPractice.stop();
+            webcamPractice = null;
+        }
+        cancelAnimationFrame(animFrame);
+        beginGameSetup();
+        }
+
+        //  COUNTDOWN THEN GAME
+
+        async function beginGameSetup() {
+        showScreen('screen-game');
+        
+        // Update HS
+        document.getElementById('game-hs').textContent = getHighscore();
+        
+        // Setup canvas
+        const canvas = document.getElementById('canvas-game');
+        canvas.width = 300; canvas.height = 300;
+        ctxG = canvas.getContext('2d');
+        
+        // Start webcam
+        webcamGame = new tmPose.Webcam(300, 300, true);
+        await webcamGame.setup();
+        await webcamGame.play();
+        
+        // Countdown
+        await countdown(3);
+        
+        // Init game state
+        squatCount    = 0;
+        timeLeft      = gameDuration;
+        currentPose   = '';
+        lastCounted   = '';
+        bestStreak    = 0;
+        currentStreak = 0;
+        gameActive    = true;
+        paused        = false;
+        gameStartTime = Date.now();
+        
+        updateCounter(0);
+        updateTimerDisplay();
+        buildProbBars();
+        
+        timerInterval = setInterval(tickTimer, 1000);
+        gameLoop();
+        }
+        
+        function countdown(from) {
+        return new Promise(resolve => {
+            const overlay = document.getElementById('countdown-overlay');
+            const numEl   = document.getElementById('countdown-num');
+            overlay.style.display = 'flex';
+            let n = from;
+        
+            function tick() {
+            numEl.textContent = n;
+            numEl.style.animation = 'none';
+            void numEl.offsetWidth;
+            numEl.style.animation = 'countPulse .9s ease forwards';
+            if (n === 0) {
+                setTimeout(() => { overlay.style.display = 'none'; resolve(); }, 700);
+                return;
+            }
+            n--;
+            setTimeout(tick, 900);
+            }
+            tick();
+        });
+        }
+
+        //  GAME LOOP
+
+        async function gameLoop() {
+        if (!gameActive) return;
+        if (!paused) {
+            webcamGame.update();
+            const { pose, posenetOutput } = await model.estimatePose(webcamGame.canvas);
+            const predictions = await model.predict(posenetOutput);
+            processGamePredictions(predictions);
+            drawGamePose(pose);
+            updateProbBars(predictions);
+        }
+        animFrame = requestAnimationFrame(gameLoop);
+        }
+        
+        function processGamePredictions(predictions) {
+        let topClass = '', topConf = 0;
+        predictions.forEach(p => {
+            if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
+        });
+        
+        const indEl  = document.getElementById('game-indicator');
+        const txtEl  = document.getElementById('game-pose-text');
+        const statusEl = document.getElementById('game-status');
+        
+        if (topConf < CONFIDENCE_THRESHOLD) {
+            txtEl.textContent = 'Onzeker...';
+            indEl.className = 'pose-indicator';
+            return;
+        }
+        
         txtEl.textContent = topClass;
         const isUp   = topClass === CLASS_UP;
         const isDown = topClass === CLASS_DOWN;
         indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
-        statusEl.textContent = isUp   ? '✅ Staand herkend!' :
-                            isDown ? '🔽 Squat herkend!' : '';
-    } else {
-        txtEl.textContent = 'Onzeker...';
-        indEl.className = 'pose-indicator';
-        statusEl.textContent = '⚠️ Ga iets dichter bij de camera staan.';
-    }
-    
-    animFrame = requestAnimationFrame(practiceLoop);
-    }
-    
-    function skipPractice() {
-    loadModel().then(ok => {
-        if (ok) beginGameSetup();
-    });
-    }
-    
-    async function goToGame() {
-    if (webcamPractice) {
-        webcamPractice.stop();
-        webcamPractice = null;
-    }
-    cancelAnimationFrame(animFrame);
-    beginGameSetup();
-    }
-
-    //  COUNTDOWN THEN GAME
-
-    async function beginGameSetup() {
-    showScreen('screen-game');
-    
-    // Update HS
-    document.getElementById('game-hs').textContent = getHighscore();
-    
-    // Setup canvas
-    const canvas = document.getElementById('canvas-game');
-    canvas.width = 300; canvas.height = 300;
-    ctxG = canvas.getContext('2d');
-    
-    // Start webcam
-    webcamGame = new tmPose.Webcam(300, 300, true);
-    await webcamGame.setup();
-    await webcamGame.play();
-    
-    // Countdown
-    await countdown(3);
-    
-    // Init game state
-    squatCount    = 0;
-    timeLeft      = gameDuration;
-    currentPose   = '';
-    lastCounted   = '';
-    bestStreak    = 0;
-    currentStreak = 0;
-    gameActive    = true;
-    paused        = false;
-    gameStartTime = Date.now();
-    
-    updateCounter(0);
-    updateTimerDisplay();
-    buildProbBars();
-    
-    timerInterval = setInterval(tickTimer, 1000);
-    gameLoop();
-    }
-    
-    function countdown(from) {
-    return new Promise(resolve => {
-        const overlay = document.getElementById('countdown-overlay');
-        const numEl   = document.getElementById('countdown-num');
-        overlay.style.display = 'flex';
-        let n = from;
-    
-        function tick() {
-        numEl.textContent = n;
-        numEl.style.animation = 'none';
-        void numEl.offsetWidth;
-        numEl.style.animation = 'countPulse .9s ease forwards';
-        if (n === 0) {
-            setTimeout(() => { overlay.style.display = 'none'; resolve(); }, 700);
-            return;
+        
+        // Count squat: up → down → up = 1 squat
+        if (isDown && lastCounted !== 'down') {
+            currentPose = 'down';
+            lastCounted = 'down';
+            document.getElementById('canvas-game').className = 'squat-down';
+            statusEl.textContent = '🔽 Squat!';
+        } else if (isUp && lastCounted === 'down') {
+            // completed squat!
+            squatCount++;
+            currentStreak++;
+            if (currentStreak > bestStreak) bestStreak = currentStreak;
+            lastCounted = 'up';
+            currentPose = 'up';
+            document.getElementById('canvas-game').className = 'squat-up';
+            statusEl.textContent = `✅ +1  (totaal: ${squatCount})`;
+            updateCounter(squatCount);
+            updateStatsPanel();
+        } else if (isUp) {
+            lastCounted = 'up';
+            currentPose = 'up';
         }
-        n--;
-        setTimeout(tick, 900);
         }
-        tick();
-    });
-    }
-    
+        
+        function drawGamePose(pose) {
+        ctxG.drawImage(webcamGame.canvas, 0, 0);
+        if (pose) {
+            tmPose.drawKeypoints(pose.keypoints, 0.5, ctxG);
+            tmPose.drawSkeleton(pose.keypoints, 0.5, ctxG);
+        }
+        }
+        
+        //  TIMER
+
+        function tickTimer() {
+        if (paused || !gameActive) return;
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft <= 0) endGame();
+        }
+        
+        function updateTimerDisplay() {
+        document.getElementById('timer-display').textContent = timeLeft;
+        const fill = document.getElementById('timer-ring');
+        const offset = CIRC * (1 - timeLeft / gameDuration);
+        fill.style.strokeDashoffset = offset;
+        fill.style.stroke = timeLeft <= 10 ? 'var(--accent2)' : 'var(--accent)';
+        }
+        
+        function togglePause() {
+        paused = !paused;
+        document.getElementById('pause-btn').textContent = paused ? '▶ Hervat' : '⏸ Pauzeer';
+        }
+        
+        //  COUNTER UI
+
+        function updateCounter(n) {
+        document.getElementById('game-count').textContent = n;
+        const big = document.getElementById('big-count');
+        big.textContent = n;
+        big.classList.remove('pop');
+        void big.offsetWidth;
+        big.classList.add('pop');
+        }
+        
+        function updateStatsPanel() {
+        const elapsed = (Date.now() - gameStartTime) / 1000 / 60;
+        const rpm = elapsed > 0 ? (squatCount / elapsed).toFixed(1) : '—';
+        document.getElementById('stat-rpm').textContent = rpm;
+        document.getElementById('stat-streak').textContent = bestStreak;
+        }
+        
+        //  PROBABILITY BARS
+
+        function buildProbBars() {
+        if (!model) return;
+        const container = document.getElementById('prob-bars');
+        container.innerHTML = '';
+        for (let i = 0; i < maxPredictions; i++) {
+            const row = document.createElement('div');
+            row.className = 'prob-row';
+            row.innerHTML = `
+            <div class="prob-row-label">
+                <span id="pb-name-${i}">—</span>
+                <span id="pb-pct-${i}">0%</span>
+            </div>
+            <div class="prob-bar-bg">
+                <div class="prob-bar-fill ${i === 1 ? 'bar-down' : ''}" id="pb-fill-${i}" style="width:0%"></div>
+            </div>`;
+            container.appendChild(row);
+        }
+        }
+        
+        function updateProbBars(predictions) {
+        predictions.forEach((p, i) => {
+            const pct = (p.probability * 100).toFixed(0);
+            const el = document.getElementById(`pb-fill-${i}`);
+            const nameEl = document.getElementById(`pb-name-${i}`);
+            const pctEl  = document.getElementById(`pb-pct-${i}`);
+            if (el) { el.style.width = pct + '%'; }
+            if (nameEl) nameEl.textContent = p.className;
+            if (pctEl)  pctEl.textContent  = pct + '%';
+        });
+        }
+        
+        //  END GAME
+
+        function endGame() {
+        gameActive = false;
+        clearInterval(timerInterval);
+        cancelAnimationFrame(animFrame);
+        if (webcamGame) { webcamGame.stop(); webcamGame = null; }
+        
+        saveRun(squatCount, gameDuration);
+        
+        const hs = getHighscore();
+        const isRecord = squatCount >= hs;
+        
+        document.getElementById('result-score').textContent = squatCount;
+        document.getElementById('result-time').textContent = gameDuration + 's';
+        const badge = document.getElementById('result-badge');
+        badge.textContent = isRecord ? '🏆 NIEUW RECORD!' : `Highscore: ${hs}`;
+        badge.style.background = isRecord ? 'var(--green)' : 'var(--accent)';
+        
+        renderHistory();
+        showScreen('screen-result');
+        }
+        
+        function renderHistory() {
+        const history = getHistory();
+        const list = document.getElementById('history-list');
+        list.innerHTML = '';
+        const hs = getHighscore();
+        history.forEach((run, idx) => {
+            const div = document.createElement('div');
+            div.className = 'history-item ' + (run.score === hs ? 'top' : '');
+            div.innerHTML = `<span>${run.date} (${run.duration}s)</span><span class="hi-score">${run.score} squats</span>`;
+            list.appendChild(div);
+        });
+        }
+        
+        //  RESTART
+
+        function restartGame() {
+        showScreen('screen-game');
+        beginGameSetup();
+        }
+        
+        //  INIT
+
+        updateLandingHighscore();
+    </script>
 </body>
 <script type="text/javascript">
     // More API functions here:
