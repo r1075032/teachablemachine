@@ -192,7 +192,7 @@
     }
     
     //  LANDING
-    
+
     document.querySelectorAll('.time-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
@@ -215,6 +215,105 @@
     el.innerHTML = hs > 0
         ? `Highscore: <strong>${hs} squats</strong>`
         : 'Nog geen scores opgeslagen.';
+    }
+
+    //  MODEL INIT
+
+    async function loadModel() {
+    showLoading(true);
+    try {
+        model = await tmPose.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
+        maxPredictions = model.getTotalClasses();
+        buildProbBars();
+    } catch(e) {
+        alert('Model kon niet geladen worden. Zorg dat de map "my_model" aanwezig is.\n\n' + e);
+        showLoading(false);
+        return false;
+    }
+    showLoading(false);
+    return true;
+    }
+    
+    function showLoading(b) {
+    document.getElementById('loading-overlay').style.display = b ? 'flex' : 'none';
+    }
+    
+    //  PRACTICE MODE
+
+    async function startPractice() {
+    const ok = await loadModel();
+    if (!ok) return;
+    
+    showScreen('screen-practice');
+    
+    const canvas = document.getElementById('canvas-practice');
+    canvas.width = 300; canvas.height = 300;
+    ctxP = canvas.getContext('2d');
+    
+    webcamPractice = new tmPose.Webcam(300, 300, true);
+    await webcamPractice.setup();
+    await webcamPractice.play();
+    
+    practiceLoop();
+    }
+    
+    async function practiceLoop() {
+    if (!webcamPractice) return;
+    webcamPractice.update();
+    
+    const { pose, posenetOutput } = await model.estimatePose(webcamPractice.canvas);
+    const predictions = await model.predict(posenetOutput);
+    
+    // draw
+    ctxP.drawImage(webcamPractice.canvas, 0, 0);
+    if (pose) {
+        tmPose.drawKeypoints(pose.keypoints, 0.5, ctxP);
+        tmPose.drawSkeleton(pose.keypoints, 0.5, ctxP);
+    }
+    
+    // labels
+    const labEl = document.getElementById('practice-labels');
+    const indEl = document.getElementById('practice-indicator');
+    const txtEl = document.getElementById('practice-pose-text');
+    const statusEl = document.getElementById('practice-status');
+    
+    let html = '';
+    let topClass = '', topConf = 0;
+    predictions.forEach(p => {
+        if (p.probability > topConf) { topConf = p.probability; topClass = p.className; }
+        html += `<span>${p.className}: ${(p.probability*100).toFixed(0)}%</span>  `;
+    });
+    labEl.innerHTML = html;
+    
+    if (topConf > CONFIDENCE_THRESHOLD) {
+        txtEl.textContent = topClass;
+        const isUp   = topClass === CLASS_UP;
+        const isDown = topClass === CLASS_DOWN;
+        indEl.className = 'pose-indicator ' + (isUp ? 'up' : isDown ? 'down' : '');
+        statusEl.textContent = isUp   ? '✅ Staand herkend!' :
+                            isDown ? '🔽 Squat herkend!' : '';
+    } else {
+        txtEl.textContent = 'Onzeker...';
+        indEl.className = 'pose-indicator';
+        statusEl.textContent = '⚠️ Ga iets dichter bij de camera staan.';
+    }
+    
+    animFrame = requestAnimationFrame(practiceLoop);
+    }
+    
+    function skipPractice() {
+    loadModel().then(ok => {
+        if (ok) beginGameSetup();
+    });
+    }
+    
+    async function goToGame() {
+    if (webcamPractice) {
+        webcamPractice.stop();
+        webcamPractice = null;
+    }
+    cancelAnimationFrame(animFrame);
+    beginGameSetup();
     }
     
 </body>
